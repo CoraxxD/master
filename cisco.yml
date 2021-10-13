@@ -1,0 +1,158 @@
+---
+- hosts: case2
+  gather_facts: no
+  vars:
+   - left_hostname: "left.pod.unakbars.ru"
+   - right_hostname: "right.pod.unakbars.ru"
+  tasks:
+  - name: Set 192.168.200.254 gi2 Right
+    ios_config:
+     parents: "interface gi2"
+     lines:
+       - ip address 192.168.200.254 255.255.255.0
+       - no shut
+    when: inventory_hostname == "right.pod"
+  - name: Set 192.168.100.254 gi2 Left
+    ios_config:
+     parents: "int gi2"
+     lines:
+       - ip address 192.168.100.254 255.255.255.0
+       - no shut
+    when: inventory_hostname == "left.pod"
+  - name: Set dns server Right
+    ios_config:
+     lines:
+       - ip name-server 200.100.100.254
+    when: inventory_hostname == "right.pod"
+  - name: Set dns server Left
+    ios_config:
+     lines:
+       - ip name-server 200.100.100.254
+    when: inventory_hostname == "left.pod"
+  
+  - name: nat inside
+    ios_config:
+     parents: "int gi2"
+     lines:
+      - ip nat inside
+  
+  - name: nat outside   
+    ios_config: 
+     parents: "int gi1"
+     lines:
+      - ip nat outside
+
+  - name: access list standard right
+    ios_config:
+     parents: "ip access-list standard NAT"
+     lines:
+       - permit 192.168.200.0 0.0.0.255
+    when: inventory_hostname == "right.pod"    
+  - name: access list standard left
+    ios_config:
+     parents: "ip access-list standard NAT"
+     lines:
+       - permit 192.168.100.0 0.0.0.255
+    when: inventory_hostname == "left.pod"
+  - name: nat overload
+    ios_config:
+     lines:
+       - ip nat inside source list NAT int gi1 overload
+  - name: gre right
+    ios_config:
+     parents: "int tun1"
+     lines:
+       - ip address 100.100.100.2 255.255.255.252
+       - tunnel source gi1
+       - tunnel destination left.pod.unakbars.ru
+       - tunnel mode gre ip
+       - no sh
+    when: inventory_hostname == "right.pod"
+  - name: gre left
+    ios_config:
+     parents: "int tun1"
+     lines:
+       - ip address 100.100.100.1 255.255.255.252
+       - tunnel source gi1
+       - tunnel destination right.pod.unakbars.ru
+       - tunnel mode gre ip
+       - no sh
+    when: inventory_hostname == "left.pod"
+  - name: ipsec isakmp policy 
+    ios_config:
+     parents: "crypto isakmp policy 1"
+     lines:
+       - encr aes
+       - hash sha256
+       - authentication pre-share
+       - group 14
+  - name:  ipsec key cisco
+    ios_config:
+     lines:
+      - crypto isakmp key cisco address 0.0.0.0
+ 
+  - name: ipsec transform-set
+    ios_config:
+     parents: "crypto ipsec transform-set TS esp-aes esp-md5-hmac"
+     lines:
+       - mode transport
+ 
+  - name: ipsec profile vpn
+    ios_config:
+     parents: crypto ipsec profile vpn
+     lines:
+       - set transform-set TS
+ 
+  - name: tun1 protection
+    ios_config:
+     parents: "int tun1"
+     lines:
+       - tunnel protection ipsec profile vpn
+ 
+  - name: capture_ip_right
+    ios_command:
+     commands:
+       - sh ip int br gi1
+    register: output_right
+    when: inventory_hostname == "right.pod"
+ 
+  - name: capture ip left
+    ios_command:
+     commands:
+       - sh ip int br gi1
+    register: output_left
+    when: inventory_hostname == "left.pod"
+  
+  - name: show_output_right
+    debug:
+      var: "{{ output_right.stdout[0].split('\n')[1].split()[1] }}"
+    when: inventory_hostname == "right.pod"
+ 
+  - name: show_output_left
+    debug:
+      var: "{{ output_left.stdout[0].split('\n')[1].split()[1] }}"
+    when: inventory_hostname == "left.pod"
+
+  - name: ip_nat_static_right
+    ios_config:
+     lines:
+       - "ip nat inside source static tcp 192.168.200.10 22 {{ output_right.stdout[0].split('\n')[1].split()[1] }} 2222"
+    when: inventory_hostname == "right.pod"
+ 
+  - name: ip_nat_static_left
+    ios_config:
+     lines:
+       - "ip nat inside source static tcp 192.168.100.10 22 {{ output_left.stdout[0].split('\n')[1].split()[1] }} 2222"
+    when: inventory_hostname == "left.pod"
+
+  - name: ip_route_right
+    ios_config:
+     lines:
+       - ip route 192.168.100.0 255.255.255.0 100.100.100.1
+    when: inventory_hostname == "right.pod"
+
+  - name: ip_route_left
+    ios_config:
+     lines:
+       - ip route 192.168.200.0 255.255.255.0 100.100.100.2
+    when: inventory_hostname == "left.pod"
