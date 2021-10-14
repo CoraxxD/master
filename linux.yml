@@ -1,0 +1,138 @@
+---
+- hosts: case1
+  gather_facts: no
+  tasks:
+  - name: update apt cache
+    apt: update_cache=yes cache_valid_time=3600
+
+#  - name: update all apt packages
+#    apt: upgrade=dist
+
+  - name: Install dependencies
+    apt:
+      name: "{{ packages }}"
+      state: present
+      update_cache: yes
+    vars:
+      packages:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - software-properties-common
+      - gnupg-agent
+
+  - name: Add an apt signing key for docker
+    apt_key:
+      url: https://download.docker.com/linux/ubuntu/gpg
+      state: present
+ 
+  - name: add apt repository for stable version
+    apt_repository:
+      repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable
+      state: present
+
+  - name: install docker
+    apt:
+      name: "{{ packages }}"
+      state: present
+      update_cache: yes
+    vars:
+      packages:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+
+  - name: add user to docker group
+    user:
+      name: "{{ansible_user}}"
+      group: docker
+
+  - name: download docker-compose
+    get_url:
+      url: https://github.com/docker/compose/releases/download/1.27.4/docker-compose-Linux-x86_64
+      dest: ~/docker-compose
+      mode: '+x'
+
+  - name: check docker-compose exists
+    stat: path=~/docker-compose
+    register: docker_compose
+
+  - name: move docker_compose to
+    command: mv ~/docker-compose /usr/local/bin/docker-compose
+    when: docker_compose.stat.exists
+  
+  - name: copy_file_docker_compose_to_db
+    copy:
+       src: ./docker-compose.yml
+       dest: /root/docker-compose.yml
+    when: inventory_hostname == "db" 
+  
+  - name: docker_compose_up_db
+    shell: docker-compose up -d --build 
+    when: inventory_hostname == "db"
+  
+  - name: appload_app_in_docker_web1
+    shell: docker load < /opt/responding-app.tar
+    when: inventory_hostname == "web1"
+
+  - name: start_docker_web1
+    shell: sudo docker run -d --publish 5000:5000 --restart always responding-app --ad_ip_addr 200.100.100.1 --db_conn_string postgresql://admin:secret@200.100.100.100:5432/dev --external_link http://yandex.ru
+    when: inventory_hostname == "web1"
+
+  - name: appload_app_in_docker_web2
+    shell: docker load < /opt/responding-app.tar
+    when: inventory_hostname == "web2"
+
+  - name: start_docker_web2
+    shell: sudo docker run -d --publish 5000:5000 --restart always responding-app --ad_ip_addr 200.100.100.1 --db_conn_string postgresql://admin:secret@200.100.100.200:5432/dev --external_link http://yandex.ru
+    when: inventory_hostname == "web2"
+
+  - name: directory
+    file:
+      path: /opt/ca
+      state: directory
+    when: inventory_hostname == "web1"
+
+  - name: Generate an OpenSSL private key.
+    openssl_privatekey:
+      path: /opt/ca/cakey.pem
+    when: inventory_hostname == "web1"
+
+  - name: Generate an OpenSSL CSR.
+    openssl_csr:
+      path: /opt/ca/ca.csr
+      privatekey_path: /opt/ca/cakey.pem
+      common_name: "site.unakbars.ru"
+    when: inventory_hostname == "web1"
+
+  - name: Generate a Self Signed OpenSSL certificate.
+    openssl_certificate:
+      path: /opt/ca/cacert.pem
+      privatekey_path: /opt/ca/cakey.pem
+      csr_path: /opt/ca/ca.csr
+      provider: selfsigned
+    when: inventory_hostname == "web1"
+  
+  - name: ensure_nginx_is_at_the_latest_version
+    apt: name=nginx state=latest
+    when: inventory_hostname == "web1"
+
+  - name: start_nginx
+    service:
+        name: nginx
+        state: started
+    when: inventory_hostname == "web1"
+  
+  - name: copy_file_task.conf_to_web1
+    copy:
+       src: ./task.conf
+       dest: /etc/nginx/conf.d/task.conf
+    when: inventory_hostname == "web1"
+ 
+  - name: reboot_nginx_web1
+    service:
+        name: nginx
+        state: restarted
+    when: inventory_hostname == "web1"
+
+  
