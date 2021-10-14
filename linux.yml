@@ -73,19 +73,19 @@
   
   - name: appload_app_in_docker_web1
     shell: docker load < /opt/responding-app.tar
-    when: inventory_hostname == "web1"
+    when: "'web' in inventory_hostname"
 
   - name: start_docker_web1
-    shell: sudo docker run -d --publish 5000:5000 --restart always responding-app --ad_ip_addr 200.100.100.1 --db_conn_string postgresql://admin:secret@200.100.100.100:5432/dev --external_link http://yandex.ru
-    when: inventory_hostname == "web1"
-
-  - name: appload_app_in_docker_web2
-    shell: docker load < /opt/responding-app.tar
-    when: inventory_hostname == "web2"
-
-  - name: start_docker_web2
-    shell: sudo docker run -d --publish 5000:5000 --restart always responding-app --ad_ip_addr 200.100.100.1 --db_conn_string postgresql://admin:secret@200.100.100.200:5432/dev --external_link http://yandex.ru
-    when: inventory_hostname == "web2"
+    shell: sudo docker run -d --publish 5000:5000 --restart always responding-app --ad_ip_addr 200.100.100.1 --db_conn_string postgresql://admin:secret@200.100.100.50:5432/dev --external_link http://yandex.ru
+    when: "'web' in inventory_hostname"
+#
+#  - name: appload_app_in_docker_web2
+#    shell: docker load < /opt/responding-app.tar
+#    when: inventory_hostname == "web2"
+#
+#  - name: start_docker_web2
+#    shell: sudo docker run -d --publish 5000:5000 --restart always responding-app --ad_ip_addr 200.100.100.1 --db_conn_string postgresql://admin:secret@200.100.100.200:5432/dev --external_link http://yandex.ru
+#    when: inventory_hostname == "web2"
 
   - name: directory
     file:
