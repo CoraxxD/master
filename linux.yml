@@ -129,11 +129,6 @@
        dest: /etc/nginx/conf.d/task.conf
     when: inventory_hostname == "web1"
     
-  - name: copy_file_htpasswd_to_web1
-    copy:
-       src: ./.htpasswd
-       dest: /etc/nginx/.htpasswd
-    when: inventory_hostname == "web1"
     
   - name: reboot_nginx_web1
     service:
