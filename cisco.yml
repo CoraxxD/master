@@ -156,3 +156,8 @@
      lines:
        - ip route 192.168.200.0 255.255.255.0 100.100.100.2
     when: inventory_hostname == "left.pod"
+    
+  - name: 123
+    ios_config:
+     lines:
+       - do wr
