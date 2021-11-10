@@ -91,19 +91,19 @@
     file:
       path: /opt/ca
       state: directory
-    when: inventory_hostname == "web1"
+    when: "'web' in inventory_hostname"
 
   - name: Generate an OpenSSL private key.
     openssl_privatekey:
       path: /opt/ca/cakey.pem
-    when: inventory_hostname == "web1"
+    when: "'web' in inventory_hostname"
 
   - name: Generate an OpenSSL CSR.
     openssl_csr:
       path: /opt/ca/ca.csr
       privatekey_path: /opt/ca/cakey.pem
       common_name: "site.unakbars.ru"
-    when: inventory_hostname == "web1"
+    when: "'web' in inventory_hostname"
 
   - name: Generate a Self Signed OpenSSL certificate.
     openssl_certificate:
@@ -111,29 +111,31 @@
       privatekey_path: /opt/ca/cakey.pem
       csr_path: /opt/ca/ca.csr
       provider: selfsigned
-    when: inventory_hostname == "web1"
+    when: "'web' in inventory_hostname"
   
   - name: ensure_nginx_is_at_the_latest_version
     apt: name=nginx state=latest
-    when: inventory_hostname == "web1"
+    when: "'web' in inventory_hostname"
+   
 
   - name: start_nginx
     service:
         name: nginx
         state: started
-    when: inventory_hostname == "web1"
+    when: "'web' in inventory_hostname"
+
   
   - name: copy_file_task.conf_to_web1
     copy:
        src: ./task.conf
        dest: /etc/nginx/conf.d/task.conf
-    when: inventory_hostname == "web1"
+    when: "'web' in inventory_hostname"
     
     
   - name: reboot_nginx_web1
     service:
         name: nginx
         state: restarted
-    when: inventory_hostname == "web1"
+    when: "'web' in inventory_hostname"
 
   
